@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WiGLE CSV Viewer</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>WiGLE CSV Viewer</h1>
+          <p>Filter, dedupe, preview, and export your scans.</p>
+        </div>
+        <div class="status-card">
+          <div id="statusBadge" class="status-badge">No CSV loaded</div>
+          <div id="countLabel" class="count-label">0 / 0 rows</div>
+        </div>
+      </header>
+
+      <section class="panel">
+        <h2>Data Source</h2>
+        <label>
+          Upload CSV
+          <input id="uploadInput" type="file" accept=".csv,text/csv" />
+        </label>
+      </section>
+
+      <section class="panel">
+        <h2>Filters</h2>
+        <div id="filtersContainer" class="filters-container"></div>
+        <div class="inline-group">
+          <button id="addFilterBtn" type="button">Add Filter</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Type + Tags</h2>
+        <div class="inline-group">
+          <button id="clearTagsBtn" type="button">Clear Tags</button>
+        </div>
+        <div class="origin-switches">
+          <label class="toggle">
+            <input id="showWifiToggle" type="checkbox" checked />
+            Show WiFi
+          </label>
+          <label class="toggle">
+            <input id="showBleToggle" type="checkbox" checked />
+            Show BLE/BT
+          </label>
+          <label class="toggle">
+            <input id="showLteToggle" type="checkbox" checked />
+            Show LTE
+          </label>
+        </div>
+        <div id="tagFiltersContainer" class="tag-filters-container"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Uniqueness + Columns</h2>
+        <div class="grid two">
+          <div>
+            <div class="subheading">Unique rows</div>
+            <label class="toggle">
+              <input id="uniqueMacToggle" type="checkbox" />
+              Unique by MAC
+            </label>
+            <label class="toggle">
+              <input id="uniqueWifiToggle" type="checkbox" />
+              Unique by SSID
+            </label>
+            <div id="uniqueInfo" class="muted"></div>
+          </div>
+          <div>
+            <div class="subheading">Ignore columns</div>
+            <div id="ignoreColumns" class="columns-box"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Preview + Export</h2>
+        <div class="toolbar-row">
+          <label>
+            Rows per page
+            <select id="pageSizeSelect">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="250">250</option>
+            </select>
+          </label>
+          <button id="downloadBtn" type="button">Download Filtered CSV</button>
+          <div class="pagination-inline">
+            <button id="prevPageBtn" type="button">Previous</button>
+            <div id="pageInfo" class="muted page-pill">Page 1 / 1</div>
+            <button id="nextPageBtn" type="button">Next</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="resultsTable">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
