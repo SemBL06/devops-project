@@ -1,76 +1,238 @@
 <!doctype html>
 <html lang="nl">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#101820">
-  <meta name="description" content="Architectuur, services en beheer van de DevOps self-hostingstack op forageek.com.">
-  <title>DevOps Stack — Architectuur</title>
-  <link rel="stylesheet" href="/styles.css">
-</head>
-<body>
-  <header class="hero">
-    <div class="hero__inner">
-      <p class="eyebrow">FORAGEEK.COM · SELF-HOSTED</p>
-      <h1>Een stack.<br><span>Zeven apps + DDNS.</span></h1>
-      <p class="lede">Een Docker Compose-project op een Ubuntu-thuisserver. DDNS volgt het wisselende publieke IP, Traefik routeert HTTPS-verkeer en dagelijkse back-ups beschermen de blijvende data.</p>
-      <a class="button" href="#services">Bekijk de services <span aria-hidden="true">↓</span></a>
-      <div class="hero__meta"><span><i class="pulse"></i> Docker Compose</span><span>Ubuntu thuisserver</span><span>forageek.com</span></div>
-    </div>
-    <div class="hero__orb" aria-hidden="true"></div>
-  </header>
-
-  <main>
-    <section class="section architecture" aria-labelledby="architecture-title">
-      <div class="section-heading">
-        <p class="eyebrow">01 / VERKEERSSTROOM</p>
-        <h2 id="architecture-title">Van browser naar service</h2>
-        <p>Een Cloudflare DDNS-container werkt het wildcard-A-record bij. Traefik vraagt en vernieuwt wildcard-certificaten via Cloudflare DNS-01.</p>
-      </div>
-      <div class="flow" role="img" aria-label="Browser via HTTPS en Traefik naar Authentik of een applicatie; databases zijn intern bereikbaar.">
-        <div class="flow-node flow-node--browser"><span class="node-icon">↗</span><strong>Browser</strong><small>HTTPS</small></div>
-        <div class="flow-link"><span>443</span></div>
-        <div class="flow-node flow-node--proxy"><span class="node-icon">⇄</span><strong>Traefik</strong><small>Router · TLS</small></div>
-        <div class="flow-branches">
-          <div class="branch"><span class="branch-line"></span><div class="flow-node flow-node--identity"><span class="node-icon">◈</span><strong>Authentik</strong><small>SSO · forward auth</small></div></div>
-          <div class="branch"><span class="branch-line"></span><div class="flow-node flow-node--app"><span class="node-icon">▦</span><strong>Apps</strong><small>Eigen containers</small></div><span class="branch-line branch-line--db"></span><div class="flow-node flow-node--db"><span class="node-icon">▤</span><strong>Databases</strong><small>Intern Docker-netwerk</small></div></div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101820" />
+    <meta
+      name="description"
+      content="Architectuur, services en beheer van de DevOps self-hostingstack op forageek.com."
+    />
+    <title>DevOps Stack — Architectuur</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero__inner">
+        <p class="eyebrow">FORAGEEK.COM · SELF-HOSTED</p>
+        <h1>Een stack.<br /><span>Zeven apps + DDNS.</span></h1>
+        <p class="lede">
+          Een Docker Compose-project op een Ubuntu-thuisserver. DDNS volgt het
+          wisselende publieke IP, Traefik routeert HTTPS-verkeer en dagelijkse
+          back-ups beschermen de blijvende data.
+        </p>
+        <a class="button" href="#services"
+          >Bekijk de services <span aria-hidden="true">↓</span></a
+        >
+        <div class="hero__meta">
+          <span><i class="pulse"></i> Docker Compose</span
+          ><span>Ubuntu thuisserver</span><span>forageek.com</span>
         </div>
       </div>
-      <div class="notes"><p><b>TLS</b> Let’s Encrypt DNS-01 via beperkte Cloudflare API-token.</p><p><b>Netwerk</b> Alleen poorten 80 en 443 zijn publiek bereikbaar.</p><p><b>DDNS</b> Wildcard-A-record elke vijf minuten bijgewerkt; Discord-meldingen optioneel.</p><p><b>Data</b> Elke service schrijft naar eigen persistente opslag.</p></div>
-    </section>
+      <div class="hero__orb" aria-hidden="true"></div>
+    </header>
 
-    <section class="section services" id="services" aria-labelledby="services-title">
-      <div class="section-heading">
-        <p class="eyebrow">02 / SERVICEKAART</p>
-        <h2 id="services-title">Alles op zijn eigen plek</h2>
-        <p>Elke hostnaam komt uit dezelfde projectroot en wordt door Compose beheerd.</p>
-      </div>
-      <div class="service-grid">
-        <a class="service-card service-card--featured" href="https://wigle.devops.forageek.com"><span class="service-number">01</span><span class="service-mark">⌁</span><h3>WiGLE Viewer</h3><p>Filter, bekijk en exporteer WiGLE CSV-bestanden. CSV-verwerking gebeurt in de browser.</p><span class="service-url">wigle.devops.forageek.com ↗</span></a>
-        <a class="service-card" href="https://wordpress.devops.forageek.com"><span class="service-number">02</span><span class="service-mark">W</span><h3>WordPress</h3><p>Website en CMS met een eigen MariaDB-database.</p><span class="service-url">wordpress.devops.forageek.com ↗</span></a>
-        <a class="service-card" href="https://uptime.devops.forageek.com"><span class="service-number">03</span><span class="service-mark">◉</span><h3>Uptime Kuma</h3><p>Beschikbaarheid van de services en endpoints monitoren.</p><span class="service-url">uptime.devops.forageek.com ↗</span></a>
-        <a class="service-card" href="https://linkwarden.devops.forageek.com"><span class="service-number">04</span><span class="service-mark">↗</span><h3>Linkwarden</h3><p>Links opslaan met PostgreSQL en Meilisearch; OIDC-login via Authentik.</p><span class="service-url">linkwarden.devops.forageek.com ↗</span></a>
-        <a class="service-card" href="https://excalidraw.devops.forageek.com"><span class="service-number">05</span><span class="service-mark">✳</span><h3>Excalidraw</h3><p>Zelfgehoste diagrameditor. Excalidraw slaat geen tekeningen op de server op.</p><span class="service-url">excalidraw.devops.forageek.com ↗</span></a>
-        <a class="service-card" href="https://authentik.devops.forageek.com"><span class="service-number">06</span><span class="service-mark">◈</span><h3>Authentik</h3><p>Centrale identiteitsprovider voor OIDC en beveiligde proxytoegang.</p><span class="service-url">authentik.devops.forageek.com ↗</span></a>
-        <article class="service-card service-card--local"><span class="service-number">07</span><span class="service-mark">⌘</span><h3>Architectuurpagina</h3><p>Deze statische uitlegpagina wordt door Nginx geserveerd.</p><span class="service-url">architecture.devops.forageek.com</span></article>
-        <article class="service-card service-card--local"><span class="service-number">08</span><span class="service-mark">↻</span><h3>Cloudflare DDNS</h3><p>Werkt het wildcard-A-record automatisch bij bij een wijzigend thuis-IP. Discord-meldingen zijn optioneel.</p><span class="service-url">DNS-only · elke vijf minuten</span></article>
-      </div>
-    </section>
+    <main>
+      <section
+        class="section architecture"
+        aria-labelledby="architecture-title"
+      >
+        <div class="section-heading">
+          <p class="eyebrow">01 / VERKEERSSTROOM</p>
+          <h2 id="architecture-title">Van browser naar service</h2>
+          <p>
+            Een Cloudflare DDNS-container werkt het wildcard-A-record bij.
+            Traefik vraagt en vernieuwt wildcard-certificaten via Cloudflare
+            DNS-01.
+          </p>
+        </div>
+        <div
+          class="flow"
+          role="img"
+          aria-label="Browser via HTTPS en Traefik naar Authentik of een applicatie; databases zijn intern bereikbaar."
+        >
+          <div class="flow-node flow-node--browser">
+            <span class="node-icon">↗</span><strong>Browser</strong
+            ><small>HTTPS</small>
+          </div>
+          <div class="flow-link"><span>443</span></div>
+          <div class="flow-node flow-node--proxy">
+            <span class="node-icon">⇄</span><strong>Traefik</strong
+            ><small>Router · TLS</small>
+          </div>
+          <div class="flow-branches">
+            <div class="branch">
+              <span class="branch-line"></span>
+              <div class="flow-node flow-node--identity">
+                <span class="node-icon">◈</span><strong>Authentik</strong
+                ><small>SSO · forward auth</small>
+              </div>
+            </div>
+            <div class="branch">
+              <span class="branch-line"></span>
+              <div class="flow-node flow-node--app">
+                <span class="node-icon">▦</span><strong>Apps</strong
+                ><small>Eigen containers</small>
+              </div>
+              <span class="branch-line branch-line--db"></span>
+              <div class="flow-node flow-node--db">
+                <span class="node-icon">▤</span><strong>Databases</strong
+                ><small>Intern Docker-netwerk</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="notes">
+          <p>
+            <b>TLS</b> Let’s Encrypt DNS-01 via beperkte Cloudflare API-token.
+          </p>
+          <p>
+            <b>Netwerk</b> Alleen poorten 80 en 443 zijn publiek bereikbaar.
+          </p>
+          <p>
+            <b>DDNS</b> Wildcard-A-record elke vijf minuten bijgewerkt;
+            Discord-meldingen optioneel.
+          </p>
+          <p>
+            <b>Data</b> Elke service schrijft naar eigen persistente opslag.
+          </p>
+        </div>
+      </section>
 
-    <section class="section lifecycle" aria-labelledby="lifecycle-title">
-      <div class="section-heading">
-        <p class="eyebrow">03 / BEHEER</p>
-        <h2 id="lifecycle-title">Deploy. Bewaar. Herstel.</h2>
-      </div>
-      <div class="lifecycle-grid">
-        <article><span class="step">01</span><h3>Start</h3><p>Vul `.env` vooraf in en voer vanaf de projectroot uit:</p><code>./scripts/bootstrap.sh</code></article>
-        <article><span class="step">02</span><h3>Back-up</h3><p>Dagelijkse database-dumps en appdata gaan lokaal naar `./backups` en daarna naar de versleutelde rclone-remote. Een aparte schijf is optioneel.</p><code>./scripts/backup.sh</code></article>
-        <article><span class="step">03</span><h3>Herstel</h3><p>Kies een back-up-ID uit de map met snapshots; het script vervangt de stackdata en start de services opnieuw.</p><code>./scripts/recover.sh &lt;backup-id&gt;</code></article>
-      </div>
-      <p class="footnote">Excalidraw is een statische editor zonder serverdatabase of gedeelde samenwerking. De tekeningen moeten vanuit de browser worden geëxporteerd.</p>
-    </section>
-  </main>
+      <section
+        class="section services"
+        id="services"
+        aria-labelledby="services-title"
+      >
+        <div class="section-heading">
+          <p class="eyebrow">02 / SERVICEKAART</p>
+          <h2 id="services-title">Alles op zijn eigen plek</h2>
+          <p>
+            Elke hostnaam komt uit dezelfde projectroot en wordt door Compose
+            beheerd.
+          </p>
+        </div>
+        <div class="service-grid">
+          <a
+            class="service-card service-card--featured"
+            href="https://wigle.devops.forageek.com"
+            ><span class="service-number">01</span
+            ><span class="service-mark">⌁</span>
+            <h3>WiGLE Viewer</h3>
+            <p>
+              Filter, bekijk en exporteer WiGLE CSV-bestanden. CSV-verwerking
+              gebeurt in de browser.
+            </p>
+            <span class="service-url">wigle.devops.forageek.com ↗</span></a
+          >
+          <a class="service-card" href="https://wordpress.devops.forageek.com"
+            ><span class="service-number">02</span
+            ><span class="service-mark">W</span>
+            <h3>WordPress</h3>
+            <p>Website en CMS met een eigen MariaDB-database.</p>
+            <span class="service-url">wordpress.devops.forageek.com ↗</span></a
+          >
+          <a class="service-card" href="https://uptime.devops.forageek.com"
+            ><span class="service-number">03</span
+            ><span class="service-mark">◉</span>
+            <h3>Uptime Kuma</h3>
+            <p>Beschikbaarheid van de services en endpoints monitoren.</p>
+            <span class="service-url">uptime.devops.forageek.com ↗</span></a
+          >
+          <a class="service-card" href="https://linkwarden.devops.forageek.com"
+            ><span class="service-number">04</span
+            ><span class="service-mark">↗</span>
+            <h3>Linkwarden</h3>
+            <p>
+              Links opslaan met PostgreSQL en Meilisearch; OIDC-login via
+              Authentik.
+            </p>
+            <span class="service-url">linkwarden.devops.forageek.com ↗</span></a
+          >
+          <a class="service-card" href="https://excalidraw.devops.forageek.com"
+            ><span class="service-number">05</span
+            ><span class="service-mark">✳</span>
+            <h3>Excalidraw</h3>
+            <p>
+              Zelfgehoste diagrameditor. Excalidraw slaat geen tekeningen op de
+              server op.
+            </p>
+            <span class="service-url">excalidraw.devops.forageek.com ↗</span></a
+          >
+          <a class="service-card" href="https://authentik.devops.forageek.com"
+            ><span class="service-number">06</span
+            ><span class="service-mark">◈</span>
+            <h3>Authentik</h3>
+            <p>
+              Centrale identiteitsprovider voor OIDC en beveiligde proxytoegang.
+            </p>
+            <span class="service-url">authentik.devops.forageek.com ↗</span></a
+          >
+          <article class="service-card service-card--local">
+            <span class="service-number">07</span
+            ><span class="service-mark">⌘</span>
+            <h3>Architectuurpagina</h3>
+            <p>Deze statische uitlegpagina wordt door Nginx geserveerd.</p>
+            <span class="service-url">architecture.devops.forageek.com</span>
+          </article>
+          <article class="service-card service-card--local">
+            <span class="service-number">08</span
+            ><span class="service-mark">↻</span>
+            <h3>Cloudflare DDNS</h3>
+            <p>
+              Werkt het wildcard-A-record automatisch bij bij een wijzigend
+              thuis-IP. Discord-meldingen zijn optioneel.
+            </p>
+            <span class="service-url">DNS-only · elke vijf minuten</span>
+          </article>
+        </div>
+      </section>
 
-  <footer><span>DEVOPS PROJECT · FORAGEEK</span><a href="https://github.com/SemBL06/WiGLE-CSV-Viewer">Projectrepository ↗</a></footer>
-</body>
+      <section class="section lifecycle" aria-labelledby="lifecycle-title">
+        <div class="section-heading">
+          <p class="eyebrow">03 / BEHEER</p>
+          <h2 id="lifecycle-title">Deploy. Bewaar. Herstel.</h2>
+        </div>
+        <div class="lifecycle-grid">
+          <article>
+            <span class="step">01</span>
+            <h3>Start</h3>
+            <p>Vul `.env` vooraf in en voer vanaf de projectroot uit:</p>
+            <code>./scripts/bootstrap.sh</code>
+          </article>
+          <article>
+            <span class="step">02</span>
+            <h3>Back-up</h3>
+            <p>
+              Dagelijkse database-dumps en appdata gaan lokaal naar `./backups`
+              en daarna naar de versleutelde rclone-remote. Een aparte schijf is
+              optioneel.
+            </p>
+            <code>./scripts/backup.sh</code>
+          </article>
+          <article>
+            <span class="step">03</span>
+            <h3>Herstel</h3>
+            <p>
+              Kies een back-up-ID uit de map met snapshots; het script vervangt
+              de stackdata en start de services opnieuw.
+            </p>
+            <code>./scripts/recover.sh &lt;backup-id&gt;</code>
+          </article>
+        </div>
+        <p class="footnote">
+          Excalidraw is een statische editor zonder serverdatabase of gedeelde
+          samenwerking. De tekeningen moeten vanuit de browser worden
+          geëxporteerd.
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <span>DEVOPS PROJECT · FORAGEEK</span
+      ><a href="https://github.com/SemBL06/devops-project"
+        >Projectrepository ↗</a
+      >
+    </footer>
+  </body>
 </html>
