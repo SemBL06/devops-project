@@ -1,0 +1,297 @@
+name: devops-stack
+
+services:
+  cloudflare-ddns:
+    image: chaosmanorg/cloudflare-ddns:latest
+    restart: unless-stopped
+    environment:
+      PUID: ${DDNS_PUID:?Set DDNS_PUID in .env}
+      PGID: ${DDNS_PGID:?Set DDNS_PGID in .env}
+      CF_API_TOKEN: ${CF_DDNS_API_TOKEN:?Set CF_DDNS_API_TOKEN in .env}
+      CF_ZONE_ID: ${CF_ZONE_ID:?Set CF_ZONE_ID in .env}
+      CF_RECORD_NAME: ${CF_RECORD_NAME:-*.devops.forageek.com}
+      CF_TTL: "1"
+      CF_PROXY: "false"
+      DDNS_SCHEDULE: ${DDNS_SCHEDULE:-5m}
+      RUN_ON_START: "true"
+      DISCORD_URI: ${DISCORD_URI:-}
+      SITENAME: forageek.com
+      TZ: Europe/Brussels
+    volumes:
+      - ./data/cloudflare-ddns:/logs
+
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      EVENTS: 1
+      NETWORKS: 1
+      PING: 1
+      VERSION: 1
+      POST: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [proxy]
+
+  traefik:
+    image: traefik:${TRAEFIK_VERSION:-v3.7}
+    restart: unless-stopped
+    depends_on:
+      - docker-socket-proxy
+    command:
+      - --api.dashboard=true
+      - --api.insecure=false
+      - --providers.docker=true
+      - --providers.docker.endpoint=tcp://docker-socket-proxy:2375
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=devops-stack_proxy
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.cloudflare.acme.email=${ACME_EMAIL:?Set ACME_EMAIL in .env}
+      - --certificatesresolvers.cloudflare.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.cloudflare.acme.dnschallenge.provider=cloudflare
+      - --certificatesresolvers.cloudflare.acme.dnschallenge.resolvers=1.1.1.1:53,1.0.0.1:53
+      - --log.level=INFO
+      - --accesslog=true
+    environment:
+      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN:?Set CF_DNS_API_TOKEN in .env}
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./data/traefik:/letsencrypt
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+    networks: [proxy]
+
+  authentik-db:
+    image: postgres:${POSTGRES_VERSION:-16-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: authentik
+      POSTGRES_USER: authentik
+      POSTGRES_PASSWORD: ${AUTHENTIK_POSTGRES_PASSWORD:?Set AUTHENTIK_POSTGRES_PASSWORD in .env}
+    volumes:
+      - ./data/authentik/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U authentik -d authentik]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [authentik-db]
+
+  authentik-server:
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_VERSION:-2026.8.0}
+    restart: unless-stopped
+    command: server
+    environment: &authentik-environment
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?Set AUTHENTIK_SECRET_KEY in .env}
+      AUTHENTIK_POSTGRESQL__HOST: authentik-db
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRES_PASSWORD:?Set AUTHENTIK_POSTGRES_PASSWORD in .env}
+      AUTHENTIK_WEB__BASE_URL: https://authentik.${PROJECT_DOMAIN:-devops.forageek.com}
+    volumes:
+      - ./data/authentik/media:/media
+      - ./data/authentik/custom-templates:/templates
+    depends_on:
+      authentik-db:
+        condition: service_healthy
+    networks: [proxy, authentik-db]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.authentik.rule=Host(`authentik.${PROJECT_DOMAIN:-devops.forageek.com}`)
+      - traefik.http.routers.authentik.entrypoints=websecure
+      - traefik.http.routers.authentik.tls.certresolver=cloudflare
+      - traefik.http.routers.authentik.service=authentik
+      - traefik.http.services.authentik.loadbalancer.server.port=9000
+      - traefik.http.routers.authentik.tls.domains[0].main=${PROJECT_DOMAIN:-devops.forageek.com}
+      - traefik.http.routers.authentik.tls.domains[0].sans=*.${PROJECT_DOMAIN:-devops.forageek.com}
+
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_VERSION:-2026.8.0}
+    restart: unless-stopped
+    command: worker
+    environment:
+      <<: *authentik-environment
+      AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL:-}
+      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD:-}
+    volumes:
+      - ./data/authentik/media:/media
+      - ./data/authentik/certs:/certs
+      - ./data/authentik/custom-templates:/templates
+    depends_on:
+      authentik-db:
+        condition: service_healthy
+    networks: [authentik-db]
+
+  wigleviewer:
+    build:
+      context: ./apps/wiggleviewer
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 5173
+      TRUST_PROXY: "1"
+    networks: [proxy]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wigle.rule=Host(`wigle.${PROJECT_DOMAIN:-devops.forageek.com}`)
+      - traefik.http.routers.wigle.entrypoints=websecure
+      - traefik.http.routers.wigle.tls.certresolver=cloudflare
+      - traefik.http.routers.wigle.middlewares=authentik-forwardauth@file
+      - traefik.http.services.wigle.loadbalancer.server.port=5173
+
+  wordpress-db:
+    image: mariadb:${MARIADB_VERSION:-11.4}
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${WORDPRESS_DB_NAME:-wordpress}
+      MARIADB_USER: ${WORDPRESS_DB_USER:-wordpress}
+      MARIADB_PASSWORD: ${WORDPRESS_DB_PASSWORD:?Set WORDPRESS_DB_PASSWORD in .env}
+      MARIADB_ROOT_PASSWORD: ${WORDPRESS_DB_ROOT_PASSWORD:?Set WORDPRESS_DB_ROOT_PASSWORD in .env}
+    volumes:
+      - ./data/wordpress/database:/var/lib/mysql
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    networks: [wordpress-db]
+
+  wordpress:
+    image: wordpress:${WORDPRESS_VERSION:-7-php8.3-apache}
+    restart: unless-stopped
+    environment:
+      WORDPRESS_DB_HOST: wordpress-db
+      WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME:-wordpress}
+      WORDPRESS_DB_USER: ${WORDPRESS_DB_USER:-wordpress}
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:?Set WORDPRESS_DB_PASSWORD in .env}
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_HOME', 'https://wordpress.${PROJECT_DOMAIN:-devops.forageek.com}');
+        define('WP_SITEURL', 'https://wordpress.${PROJECT_DOMAIN:-devops.forageek.com}');
+        if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && $$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') { $$_SERVER['HTTPS'] = 'on'; }
+    volumes:
+      - ./data/wordpress/html:/var/www/html
+    depends_on:
+      wordpress-db:
+        condition: service_healthy
+    networks: [proxy, wordpress-db]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wordpress.rule=Host(`wordpress.${PROJECT_DOMAIN:-devops.forageek.com}`)
+      - traefik.http.routers.wordpress.entrypoints=websecure
+      - traefik.http.routers.wordpress.tls.certresolver=cloudflare
+      - traefik.http.routers.wordpress.middlewares=authentik-forwardauth@file
+      - traefik.http.services.wordpress.loadbalancer.server.port=80
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:${UPTIME_KUMA_VERSION:-2}
+    restart: unless-stopped
+    volumes:
+      - ./data/uptime-kuma:/app/data
+    networks: [proxy]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.uptime.rule=Host(`uptime.${PROJECT_DOMAIN:-devops.forageek.com}`)
+      - traefik.http.routers.uptime.entrypoints=websecure
+      - traefik.http.routers.uptime.tls.certresolver=cloudflare
+      - traefik.http.routers.uptime.middlewares=authentik-forwardauth@file
+      - traefik.http.services.uptime.loadbalancer.server.port=3001
+
+  linkwarden-db:
+    image: postgres:${POSTGRES_VERSION:-16-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${LINKWARDEN_POSTGRES_PASSWORD:?Set LINKWARDEN_POSTGRES_PASSWORD in .env}
+    volumes:
+      - ./data/linkwarden/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres -d postgres]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [linkwarden-db]
+
+  linkwarden-search:
+    image: getmeili/meilisearch:v1.13.3
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${LINKWARDEN_MEILI_MASTER_KEY:?Set LINKWARDEN_MEILI_MASTER_KEY in .env}
+      MEILI_ENV: production
+    volumes:
+      - ./data/linkwarden/meilisearch:/meili_data
+    networks: [linkwarden-db]
+
+  linkwarden:
+    image: ghcr.io/linkwarden/linkwarden:${LINKWARDEN_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:${LINKWARDEN_POSTGRES_PASSWORD:?Set LINKWARDEN_POSTGRES_PASSWORD in .env}@linkwarden-db:5432/postgres
+      NEXTAUTH_URL: https://linkwarden.${PROJECT_DOMAIN:-devops.forageek.com}/api/v1/auth
+      NEXTAUTH_SECRET: ${LINKWARDEN_NEXTAUTH_SECRET:?Set LINKWARDEN_NEXTAUTH_SECRET in .env}
+      MEILI_HOST: http://linkwarden-search:7700
+      MEILI_MASTER_KEY: ${LINKWARDEN_MEILI_MASTER_KEY:?Set LINKWARDEN_MEILI_MASTER_KEY in .env}
+      NEXT_PUBLIC_AUTHENTIK_ENABLED: ${LINKWARDEN_OIDC_ENABLED:-false}
+      AUTHENTIK_CUSTOM_NAME: Authentik
+      AUTHENTIK_ISSUER: https://authentik.${PROJECT_DOMAIN:-devops.forageek.com}/application/o/linkwarden
+      AUTHENTIK_CLIENT_ID: ${LINKWARDEN_OIDC_CLIENT_ID:-}
+      AUTHENTIK_CLIENT_SECRET: ${LINKWARDEN_OIDC_CLIENT_SECRET:-}
+    volumes:
+      - ./data/linkwarden/storage:/data/data
+    depends_on:
+      linkwarden-db:
+        condition: service_healthy
+      linkwarden-search:
+        condition: service_started
+    networks: [proxy, linkwarden-db]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.linkwarden.rule=Host(`linkwarden.${PROJECT_DOMAIN:-devops.forageek.com}`)
+      - traefik.http.routers.linkwarden.entrypoints=websecure
+      - traefik.http.routers.linkwarden.tls.certresolver=cloudflare
+      - traefik.http.routers.linkwarden.middlewares=authentik-forwardauth@file
+      - traefik.http.services.linkwarden.loadbalancer.server.port=3000
+
+  excalidraw:
+    image: excalidraw/excalidraw:${EXCALIDRAW_VERSION:-latest}
+    restart: unless-stopped
+    networks: [proxy]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.excalidraw.rule=Host(`excalidraw.${PROJECT_DOMAIN:-devops.forageek.com}`)
+      - traefik.http.routers.excalidraw.entrypoints=websecure
+      - traefik.http.routers.excalidraw.tls.certresolver=cloudflare
+      - traefik.http.routers.excalidraw.middlewares=authentik-forwardauth@file
+      - traefik.http.services.excalidraw.loadbalancer.server.port=80
+
+  architecture:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    volumes:
+      - ./site:/usr/share/nginx/html:ro
+    networks: [proxy]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.architecture.rule=Host(`architecture.${PROJECT_DOMAIN:-devops.forageek.com}`)
+      - traefik.http.routers.architecture.entrypoints=websecure
+      - traefik.http.routers.architecture.tls.certresolver=cloudflare
+      - traefik.http.routers.architecture.tls.domains[0].main=${PROJECT_DOMAIN:-devops.forageek.com}
+      - traefik.http.routers.architecture.tls.domains[0].sans=*.${PROJECT_DOMAIN:-devops.forageek.com}
+      - traefik.http.services.architecture.loadbalancer.server.port=80
+
+networks:
+  proxy:
+    name: devops-stack_proxy
+  authentik-db:
+    internal: true
+  wordpress-db:
+    internal: true
+  linkwarden-db:
+    internal: true
