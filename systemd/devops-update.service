@@ -1,0 +1,9 @@
+[Unit]
+Description=Back up and update the DevOps self-hosting stack
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=__PROJECT_ROOT__
+ExecStart=__PROJECT_ROOT__/scripts/update.sh

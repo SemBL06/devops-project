@@ -1,0 +1,9 @@
+[Unit]
+Description=Back up the DevOps self-hosting stack
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=__PROJECT_ROOT__
+ExecStart=__PROJECT_ROOT__/scripts/backup.sh
